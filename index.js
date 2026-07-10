@@ -100,7 +100,7 @@ app.get('/', (req, res) => {
       <body>
         <main class="card">
           <div class="badge">Milestone Unlocked</div>
-          <h1>Congratulations, Ahmad Raza.</h1>
+          <h1>Congratulations, Ahmad Raza Khan.</h1>
           <p>
             You are learning <span class="highlight">Jenkins</span> and
             <span class="highlight">Terraform</span>, which means you are moving beyond
