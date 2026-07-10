@@ -12,10 +12,10 @@ pipeline {
   }
 
   environment {
-    APP_NAME = "node-app"
+    APP_NAME = "terraform-node-nginx"
     DEPLOY_USER = "deploy"
     DEPLOY_HOST = "35.154.215.250"
-    DEPLOY_PATH = "/var/www/myapp"
+    DEPLOY_PATH = "/var/www/terraform-node-nginx"
     HEALTH_URL = "http://35.154.215.250/health"
   }
 
