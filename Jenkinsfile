@@ -66,7 +66,7 @@ pipeline {
           cp package-lock.json artifact/
           cp ecosystem.config.js artifact/
 
-          if [ -f server.js ]; then cp server.js artifact/; fi
+          if [ -f index.js ]; then cp index.js artifact/; fi
           if [ -d dist ]; then cp -r dist artifact/; fi
           if [ -d src ]; then cp -r src artifact/; fi
           if [ -d public ]; then cp -r public artifact/; fi
