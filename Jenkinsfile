@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurperClassic
+
 pipeline {
   agent any
 
@@ -12,17 +14,25 @@ pipeline {
   }
 
   environment {
-    APP_NAME = "terraform-node-nginx"
     DEPLOY_USER = "deploy"
     DEPLOY_HOST = "35.154.215.250"
-    DEPLOY_PATH = "/var/www/terraform-node-nginx"
-    HEALTH_URL = "http://35.154.215.250/health"
   }
 
   stages {
     stage('Checkout') {
       steps {
         checkout scm
+      }
+    }
+
+    stage('Resolve Config') {
+      steps {
+        script {
+          def packageJson = new JsonSlurperClassic().parseText(readFile('package.json'))
+          env.APP_NAME = packageJson.name
+          env.DEPLOY_PATH = "/var/www/${env.APP_NAME}"
+          env.HEALTH_URL = "http://${env.DEPLOY_HOST}/health"
+        }
       }
     }
 
@@ -98,13 +108,8 @@ pipeline {
               ln -sfn '${RELEASE_DIR}' '${DEPLOY_PATH}/current'
 
               cd '${DEPLOY_PATH}/current'
-
-              if pm2 describe '${APP_NAME}' > /dev/null; then
-                pm2 reload ecosystem.config.js --env production
-              else
-                pm2 start ecosystem.config.js --env production
-              fi
-
+              pm2 delete '${APP_NAME}' || true
+              pm2 start ecosystem.config.js --env production
               pm2 save
             "
           '''

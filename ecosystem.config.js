@@ -1,7 +1,11 @@
+const packageJson = require("./package.json");
+const deployPath = process.env.DEPLOY_PATH || `/var/www/${packageJson.name}`;
+
 module.exports = {
   apps: [
     {
-      name: "terraform-node-nginx",
+      name: packageJson.name,
+      cwd: `${deployPath}/current`,
       script: "index.js",
       instances: 1,
       exec_mode: "fork",
