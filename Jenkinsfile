@@ -14,9 +14,9 @@ pipeline {
   environment {
     APP_NAME = "node-app"
     DEPLOY_USER = "deploy"
-    DEPLOY_HOST = "YOUR_EC2_PUBLIC_IP"
+    DEPLOY_HOST = "35.154.215.250"
     DEPLOY_PATH = "/var/www/myapp"
-    HEALTH_URL = "http://YOUR_EC2_PUBLIC_IP/health"
+    HEALTH_URL = "http://35.154.215.250/health"
   }
 
   stages {
