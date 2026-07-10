@@ -1,5 +1,3 @@
-import groovy.json.JsonSlurperClassic
-
 pipeline {
   agent any
 
@@ -28,7 +26,7 @@ pipeline {
     stage('Resolve Config') {
       steps {
         script {
-          def packageJson = new JsonSlurperClassic().parseText(readFile('package.json'))
+          def packageJson = readJSON file: 'package.json'
           env.APP_NAME = packageJson.name
           env.DEPLOY_PATH = "/var/www/${env.APP_NAME}"
           env.HEALTH_URL = "http://${env.DEPLOY_HOST}/health"
