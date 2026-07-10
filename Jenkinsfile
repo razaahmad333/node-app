@@ -88,14 +88,14 @@ pipeline {
               set -e
 
               RELEASE_DIR=${DEPLOY_PATH}/releases/${BUILD_NUMBER}
-              mkdir -p $RELEASE_DIR
+              mkdir -p \$RELEASE_DIR
 
-              tar -xzf ${DEPLOY_PATH}/releases/${APP_NAME}-${BUILD_NUMBER}.tar.gz -C $RELEASE_DIR
+              tar -xzf ${DEPLOY_PATH}/releases/${APP_NAME}-${BUILD_NUMBER}.tar.gz -C \$RELEASE_DIR
 
-              cd $RELEASE_DIR
+              cd \$RELEASE_DIR
               npm ci --omit=dev
 
-              ln -sfn $RELEASE_DIR ${DEPLOY_PATH}/current
+              ln -sfn \$RELEASE_DIR ${DEPLOY_PATH}/current
 
               cd ${DEPLOY_PATH}/current
 
