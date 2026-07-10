@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "node-app",
+      name: "terraform-node-nginx",
       script: "index.js",
       instances: 1,
       exec_mode: "fork",
