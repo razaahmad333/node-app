@@ -84,29 +84,29 @@ pipeline {
 
             scp ${APP_NAME}-${BUILD_NUMBER}.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/releases/
 
-            ssh ${DEPLOY_USER}@${DEPLOY_HOST} "
+            ssh ${DEPLOY_USER}@${DEPLOY_HOST} /bin/sh <<EOF
               set -e
 
-              RELEASE_DIR=${DEPLOY_PATH}/releases/${BUILD_NUMBER}
-              mkdir -p \$RELEASE_DIR
+              RELEASE_DIR="${DEPLOY_PATH}/releases/${BUILD_NUMBER}"
+              mkdir -p "$RELEASE_DIR"
 
-              tar -xzf ${DEPLOY_PATH}/releases/${APP_NAME}-${BUILD_NUMBER}.tar.gz -C \$RELEASE_DIR
+              tar -xzf "${DEPLOY_PATH}/releases/${APP_NAME}-${BUILD_NUMBER}.tar.gz" -C "$RELEASE_DIR"
 
-              cd \$RELEASE_DIR
+              cd "$RELEASE_DIR"
               npm ci --omit=dev
 
-              ln -sfn \$RELEASE_DIR ${DEPLOY_PATH}/current
+              ln -sfn "$RELEASE_DIR" "${DEPLOY_PATH}/current"
 
-              cd ${DEPLOY_PATH}/current
+              cd "${DEPLOY_PATH}/current"
 
-              if pm2 describe ${APP_NAME} > /dev/null; then
+              if pm2 describe "${APP_NAME}" > /dev/null; then
                 pm2 reload ecosystem.config.js --env production
               else
                 pm2 start ecosystem.config.js --env production
               fi
 
               pm2 save
-            "
+            EOF
           '''
         }
       }
