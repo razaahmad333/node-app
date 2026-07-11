@@ -117,33 +117,44 @@ pipeline {
 
     stage('Deploy') {
       steps {
-        sshagent(credentials: ['ec2-deploy-ssh-key']) {
-          sh '''
-            RELEASE_DIR="${DEPLOY_PATH}/releases/${BUILD_NUMBER}"
+        withCredentials([string(credentialsId: 'sample-secret', variable: 'SAMPLE_SECRET')]) {
+          sshagent(credentials: ['ec2-deploy-ssh-key']) {
+            sh '''
+              RELEASE_DIR="${DEPLOY_PATH}/releases/${BUILD_NUMBER}"
 
-            for DEPLOY_HOST in ${DEPLOY_HOSTS}; do
-              ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "mkdir -p ${DEPLOY_PATH}/releases"
+              for DEPLOY_HOST in ${DEPLOY_HOSTS}; do
+                ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "mkdir -p ${DEPLOY_PATH}/releases ${DEPLOY_PATH}/shared"
 
-              scp ${APP_NAME}-${BUILD_NUMBER}.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/releases/
+                scp ${APP_NAME}-${BUILD_NUMBER}.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/releases/
 
-              ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                set -e
+                ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                  set -e
 
-                mkdir -p '${RELEASE_DIR}'
-                tar -xzf '${DEPLOY_PATH}/releases/${APP_NAME}-${BUILD_NUMBER}.tar.gz' -C '${RELEASE_DIR}'
+                  mkdir -p '${RELEASE_DIR}'
+                  tar -xzf '${DEPLOY_PATH}/releases/${APP_NAME}-${BUILD_NUMBER}.tar.gz' -C '${RELEASE_DIR}'
 
-                cd '${RELEASE_DIR}'
-                npm ci --omit=dev
+                  cd '${RELEASE_DIR}'
+                  npm ci --omit=dev
 
-                ln -sfn '${RELEASE_DIR}' '${DEPLOY_PATH}/current'
+                  cat > '${DEPLOY_PATH}/shared/.env.production' <<EOF
+SAMPLE_SECRET=${SAMPLE_SECRET}
+PORT=3000
+EOF
+                  chmod 600 '${DEPLOY_PATH}/shared/.env.production'
 
-                cd '${DEPLOY_PATH}/current'
-                pm2 delete '${APP_NAME}' || true
-                pm2 start ecosystem.config.js --env production
-                pm2 save
-              "
-            done
-          '''
+                  ln -sfn '${RELEASE_DIR}' '${DEPLOY_PATH}/current'
+
+                  cd '${DEPLOY_PATH}/current'
+                  set -a
+                  . '${DEPLOY_PATH}/shared/.env.production'
+                  set +a
+                  pm2 delete '${APP_NAME}' || true
+                  pm2 start ecosystem.config.js --env production
+                  pm2 save
+                "
+              done
+            '''
+          }
         }
       }
     }

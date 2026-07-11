@@ -21,9 +21,22 @@ function getServerIp() {
   return 'unknown';
 }
 
+function getSecretPreview(secret) {
+  if (!secret) {
+    return 'not loaded';
+  }
+
+  if (secret.length <= 4) {
+    return `${secret[0]}***`;
+  }
+
+  return `${secret.slice(0, 2)}***${secret.slice(-2)}`;
+}
+
 app.get('/', (req, res) => {
   const serverIp = getServerIp();
   const serverName = os.hostname();
+  const sampleSecretPreview = getSecretPreview(process.env.SAMPLE_SECRET);
 
   res.type('html').send(`
     <!DOCTYPE html>
@@ -163,6 +176,22 @@ app.get('/', (req, res) => {
             background: rgba(16, 32, 51, 0.08);
             color: var(--text);
           }
+
+          .secret {
+            margin-top: 16px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border-radius: 16px;
+            background: rgba(16, 32, 51, 0.06);
+            font: 0.95rem/1.4 Arial, sans-serif;
+            color: var(--muted);
+          }
+
+          .secret strong {
+            color: var(--text);
+          }
         </style>
       </head>
       <body>
@@ -204,6 +233,10 @@ app.get('/', (req, res) => {
               <strong>Operations</strong>
               <span>ALB health checks route traffic only to healthy targets, while your pipeline verifies the public <code>/health</code> endpoint after deployment.</span>
             </div>
+          </div>
+          <div class="secret">
+            <strong>SAMPLE_SECRET</strong>
+            <code>${sampleSecretPreview}</code>
           </div>
           <div class="footer">
             Served by instance <code>${serverName}</code> on IP <code>${serverIp}</code>.
