@@ -53,6 +53,16 @@ pipeline {
       }
     }
 
+    stage('Validate Syntax') {
+      steps {
+        sh '''
+          node --check app.js
+          node --check index.js
+          node --check test/app.test.js
+        '''
+      }
+    }
+
     stage('Build') {
       steps {
         sh '''
@@ -61,6 +71,25 @@ pipeline {
           else
             echo "No build script found, skipping"
           fi
+        '''
+      }
+    }
+
+    stage('Smoke Test') {
+      steps {
+        sh '''
+          node index.js &
+          APP_PID=$!
+
+          cleanup() {
+            kill $APP_PID >/dev/null 2>&1 || true
+          }
+
+          trap cleanup EXIT
+
+          sleep 3
+          curl -fsS http://127.0.0.1:3000/health >/dev/null
+          curl -fsS http://127.0.0.1:3000/ | grep -q "Congratulations"
         '''
       }
     }

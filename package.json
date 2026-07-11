@@ -2,9 +2,9 @@
   "name": "terraform-node-nginx",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 0",
+    "test": "node --test",
     "start": "node index.js"
   },
   "keywords": [],
@@ -13,5 +13,8 @@
   "type": "commonjs",
   "dependencies": {
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.1"
   }
 }
