@@ -1,6 +1,14 @@
 pipeline {
   agent any
 
+  parameters {
+    choice(
+      name: 'ROLLBACK_TEST_MODE',
+      choices: ['none', 'local', 'global'],
+      description: 'Use "local" to force the host-level rollback or "global" to force the ALB rollback after deployment.'
+    )
+  }
+
   tools {
     nodejs 'node-26'
   }
@@ -171,6 +179,11 @@ EOF
                   pm2 start ecosystem.config.js --env production
                   pm2 save
 
+                  if [ "${ROLLBACK_TEST_MODE}" = "local" ]; then
+                    echo 'Forcing local rollback test on this host'
+                    pm2 stop '${APP_NAME}'
+                  fi
+
                   sleep 5
                   if ! curl -fsS http://127.0.0.1:3000/health >/dev/null; then
                     echo 'New release failed local health check, rolling back'
@@ -187,9 +200,14 @@ EOF
 
     stage('Health Check') {
       steps {
-        script {
+            script {
           def healthCheckStatus = sh(
             script: '''
+              if [ "${ROLLBACK_TEST_MODE}" = "global" ]; then
+                echo "Forcing global rollback test before ALB health check"
+                exit 1
+              fi
+
               sleep 5
 
               for i in 1 2 3 4 5; do
