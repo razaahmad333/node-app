@@ -1,0 +1,115 @@
+{
+  "data": [
+    {
+      "title": "Patient's Name",
+      "description": "",
+      "type": "text",
+      "key": "fevsl",
+      "custom_key": null,
+      "value": "Dhjdb"
+    },
+    {
+      "title": "Patient's DOB",
+      "description": "",
+      "type": "date",
+      "key": "1p62g",
+      "custom_key": null,
+      "value": ""
+    },
+    {
+      "title": "Patient's Age",
+      "description": "",
+      "type": "calculation",
+      "key": "6l707",
+      "custom_key": null,
+      "value": "null"
+    },
+    {
+      "title": "Patient's Age",
+      "description": "",
+      "type": "number",
+      "key": "7q80r",
+      "custom_key": null,
+      "value": "25"
+    },
+    {
+      "title": "Patient's Gender",
+      "description": "",
+      "type": "choices",
+      "key": "3do6n",
+      "custom_key": null,
+      "value": "Male"
+    },
+    {
+      "title": "Patient's Phone Number",
+      "description": "",
+      "type": "phone",
+      "key": "a5tr9",
+      "custom_key": null,
+      "value": "111 111 1111"
+    },
+    {
+      "title": "Patient Type",
+      "description": "",
+      "type": "choices",
+      "key": "ekn9l",
+      "custom_key": null,
+      "value": "IP"
+    },
+    {
+      "title": "Diagnostics",
+      "description": "",
+      "type": "choices",
+      "key": "4emr9",
+      "custom_key": null,
+      "value": ["Lab Investigations"]
+    },
+    {
+      "title": "Additional Investigations",
+      "description": "",
+      "type": "dropdown",
+      "key": "49d47",
+      "custom_key": null,
+      "value": [
+        "Combined High Sensitivity JAK2 V617F and Exon12 Mutation Detection",
+        "24 Hrs Urine for Proteins, Sodium, Creatinine"
+      ]
+    }
+  ],
+  "form_id": "693d1d584c23fc74850ff6ef",
+  "slug": "esitests",
+  "submission_id": "6a50ab6fee0a1a42d3018a1c",
+  "created_at": "2026-07-10 13:51:03",
+  "ip_address": "223.181.111.27",
+  "charge": {
+    "products": [],
+    "summary": "",
+    "discount": 0,
+    "discounted_subscriptions": [],
+    "coupon": false,
+    "total": 0,
+    "total_cents": 0,
+    "tax": 0,
+    "tax_percentage": 0,
+    "processing_fee": 0,
+    "authorize": null,
+    "receipt_email": false
+  },
+  "team_id": 121984,
+  "base_slug": "xadnu4ok",
+  "device": {
+    "type": "mobile",
+    "device": "iPhone",
+    "platform": "iOS",
+    "browser": "Safari",
+    "embedded": false,
+    "url": "https:\/\/esitests.paperform.co\/",
+    "user_agent": "Mozilla\/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit\/605.1.15 (KHTML, like Gecko) Version\/18.6 Mobile\/15E148 Safari\/604.1",
+    "utm_source": null,
+    "utm_medium": null,
+    "utm_campaign": null,
+    "utm_term": null,
+    "utm_content": null,
+    "ip_address": "223.181.111.27"
+  }
+}

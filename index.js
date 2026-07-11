@@ -121,6 +121,18 @@ app.get('/', (req, res) => {
   `);
 });
 
+
+app.post('/payload', (req, res) => {
+  let body = '';
+  req.on('data', chunk => {
+    body += chunk.toString();
+  });
+  req.on('end', () => {
+    console.log('Received payload:', body);
+    res.status(200).send('Payload received');
+  });
+});
+
 app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
