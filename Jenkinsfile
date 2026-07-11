@@ -13,7 +13,8 @@ pipeline {
 
   environment {
     DEPLOY_USER = "deploy"
-    DEPLOY_HOST = "35.154.215.250"
+    DEPLOY_HOSTS = "43.205.217.168 15.207.98.122"
+    ALB_DNS_NAME = "terraform-node-nginx-alb-1026713903.ap-south-1.elb.amazonaws.com"
   }
 
   stages {
@@ -29,7 +30,7 @@ pipeline {
           def packageJson = readJSON file: 'package.json'
           env.APP_NAME = packageJson.name
           env.DEPLOY_PATH = "/var/www/${env.APP_NAME}"
-          env.HEALTH_URL = "http://${env.DEPLOY_HOST}/health"
+          env.HEALTH_URL = "http://${env.ALB_DNS_NAME}/health"
         }
       }
     }
@@ -90,26 +91,28 @@ pipeline {
           sh '''
             RELEASE_DIR="${DEPLOY_PATH}/releases/${BUILD_NUMBER}"
 
-            ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "mkdir -p ${DEPLOY_PATH}/releases"
+            for DEPLOY_HOST in ${DEPLOY_HOSTS}; do
+              ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "mkdir -p ${DEPLOY_PATH}/releases"
 
-            scp ${APP_NAME}-${BUILD_NUMBER}.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/releases/
+              scp ${APP_NAME}-${BUILD_NUMBER}.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/releases/
 
-            ssh ${DEPLOY_USER}@${DEPLOY_HOST} "
-              set -e
+              ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                set -e
 
-              mkdir -p '${RELEASE_DIR}'
-              tar -xzf '${DEPLOY_PATH}/releases/${APP_NAME}-${BUILD_NUMBER}.tar.gz' -C '${RELEASE_DIR}'
+                mkdir -p '${RELEASE_DIR}'
+                tar -xzf '${DEPLOY_PATH}/releases/${APP_NAME}-${BUILD_NUMBER}.tar.gz' -C '${RELEASE_DIR}'
 
-              cd '${RELEASE_DIR}'
-              npm ci --omit=dev
+                cd '${RELEASE_DIR}'
+                npm ci --omit=dev
 
-              ln -sfn '${RELEASE_DIR}' '${DEPLOY_PATH}/current'
+                ln -sfn '${RELEASE_DIR}' '${DEPLOY_PATH}/current'
 
-              cd '${DEPLOY_PATH}/current'
-              pm2 delete '${APP_NAME}' || true
-              pm2 start ecosystem.config.js --env production
-              pm2 save
-            "
+                cd '${DEPLOY_PATH}/current'
+                pm2 delete '${APP_NAME}' || true
+                pm2 start ecosystem.config.js --env production
+                pm2 save
+              "
+            done
           '''
         }
       }
