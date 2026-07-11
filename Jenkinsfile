@@ -130,6 +130,25 @@ pipeline {
                 ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
                   set -e
 
+                  PREVIOUS_RELEASE=''
+                  if [ -L '${DEPLOY_PATH}/current' ]; then
+                    PREVIOUS_RELEASE=\$(readlink -f '${DEPLOY_PATH}/current')
+                    printf '%s\n' \"\$PREVIOUS_RELEASE\" > '${DEPLOY_PATH}/shared/previous_release'
+                  fi
+
+                  rollback() {
+                    if [ -n \"\$PREVIOUS_RELEASE\" ] && [ -d \"\$PREVIOUS_RELEASE\" ]; then
+                      ln -sfn \"\$PREVIOUS_RELEASE\" '${DEPLOY_PATH}/current'
+                      cd '${DEPLOY_PATH}/current'
+                      set -a
+                      . '${DEPLOY_PATH}/shared/.env.production'
+                      set +a
+                      pm2 reload ecosystem.config.js --env production --update-env || \
+                        pm2 start ecosystem.config.js --env production
+                      pm2 save
+                    fi
+                  }
+
                   mkdir -p '${RELEASE_DIR}'
                   tar -xzf '${DEPLOY_PATH}/releases/${APP_NAME}-${BUILD_NUMBER}.tar.gz' -C '${RELEASE_DIR}'
 
@@ -151,6 +170,13 @@ EOF
                   pm2 delete '${APP_NAME}' || true
                   pm2 start ecosystem.config.js --env production
                   pm2 save
+
+                  sleep 5
+                  if ! curl -fsS http://127.0.0.1:3000/health >/dev/null; then
+                    echo 'New release failed local health check, rolling back'
+                    rollback
+                    exit 1
+                  fi
                 "
               done
             '''
@@ -161,22 +187,62 @@ EOF
 
     stage('Health Check') {
       steps {
-        sh '''
-          sleep 5
+        script {
+          def healthCheckStatus = sh(
+            script: '''
+              sleep 5
 
-          for i in 1 2 3 4 5; do
-            if curl -fsS ${HEALTH_URL}; then
-              echo "Health check passed"
-              exit 0
-            fi
+              for i in 1 2 3 4 5; do
+                if curl -fsS ${HEALTH_URL}; then
+                  echo "Health check passed"
+                  exit 0
+                fi
 
-            echo "Health check failed, retrying..."
-            sleep 5
-          done
+                echo "Health check failed, retrying..."
+                sleep 5
+              done
 
-          echo "Health check failed"
-          exit 1
-        '''
+              echo "Health check failed"
+              exit 1
+            ''',
+            returnStatus: true
+          )
+
+          if (healthCheckStatus != 0) {
+            withCredentials([string(credentialsId: 'sample-secret', variable: 'SAMPLE_SECRET')]) {
+              sshagent(credentials: ['ec2-deploy-ssh-key']) {
+                sh '''
+                  for DEPLOY_HOST in ${DEPLOY_HOSTS}; do
+                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                      set -e
+
+                      PREVIOUS_RELEASE=''
+                      if [ -f '${DEPLOY_PATH}/shared/previous_release' ]; then
+                        PREVIOUS_RELEASE=\$(cat '${DEPLOY_PATH}/shared/previous_release')
+                      fi
+
+                      if [ -n \"\$PREVIOUS_RELEASE\" ] && [ -d \"\$PREVIOUS_RELEASE\" ]; then
+                        ln -sfn \"\$PREVIOUS_RELEASE\" '${DEPLOY_PATH}/current'
+                        cd '${DEPLOY_PATH}/current'
+                        set -a
+                        . '${DEPLOY_PATH}/shared/.env.production'
+                        set +a
+                        pm2 reload ecosystem.config.js --env production --update-env || \
+                          pm2 start ecosystem.config.js --env production
+                        pm2 save
+                      else
+                        echo 'No previous release available for rollback'
+                        exit 1
+                      fi
+                    "
+                  done
+                '''
+              }
+            }
+
+            error('ALB health check failed; rolled back all hosts')
+          }
+        }
       }
     }
   }
