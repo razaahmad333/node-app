@@ -146,13 +146,30 @@ pipeline {
           sh '''
             set -e
 
-            INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
+            ASG_INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
               --auto-scaling-group-names "$ASG_NAME" \
               --region "$AWS_REGION" \
               --query "AutoScalingGroups[0].Instances[?LifecycleState=='InService'].InstanceId" \
               --output text)
 
-            echo "Deploying to instances: $INSTANCE_IDS"
+            if [ -z "$ASG_INSTANCE_IDS" ] || [ "$ASG_INSTANCE_IDS" = "None" ]; then
+              echo "No InService instances found in ASG $ASG_NAME"
+              exit 1
+            fi
+
+            INSTANCE_IDS=$(aws ssm describe-instance-information \
+              --region "$AWS_REGION" \
+              --filters Key=InstanceIds,Values=$ASG_INSTANCE_IDS \
+              --query "InstanceInformationList[?PingStatus=='Online'].InstanceId" \
+              --output text)
+
+            if [ -z "$INSTANCE_IDS" ] || [ "$INSTANCE_IDS" = "None" ]; then
+              echo "No SSM Online instances found for ASG $ASG_NAME"
+              echo "ASG instances: $ASG_INSTANCE_IDS"
+              exit 1
+            fi
+
+            echo "Deploying to SSM-managed instances: $INSTANCE_IDS"
 
             COMMAND_ID=$(aws ssm send-command \
               --region "$AWS_REGION" \
