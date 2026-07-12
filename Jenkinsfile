@@ -159,14 +159,25 @@ pipeline {
 
             SSM_FILTER_INSTANCE_IDS=$(echo "$ASG_INSTANCE_IDS" | tr '\t ' ',' | sed 's/,,*/,/g')
 
-            INSTANCE_IDS=$(aws ssm describe-instance-information \
-              --region "$AWS_REGION" \
-              --filters "Key=InstanceIds,Values=$SSM_FILTER_INSTANCE_IDS" \
-              --query "InstanceInformationList[?PingStatus=='Online'].InstanceId" \
-              --output text)
+            INSTANCE_IDS=""
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              INSTANCE_IDS=$(aws ssm describe-instance-information \
+                --region "$AWS_REGION" \
+                --filters "Key=InstanceIds,Values=$SSM_FILTER_INSTANCE_IDS" \
+                --query "InstanceInformationList[?PingStatus=='Online'].InstanceId" \
+                --output text)
+
+              if [ -n "$INSTANCE_IDS" ] && [ "$INSTANCE_IDS" != "None" ]; then
+                break
+              fi
+
+              echo "No SSM Online instances found yet for ASG $ASG_NAME"
+              echo "ASG instances: $ASG_INSTANCE_IDS"
+              sleep 30
+            done
 
             if [ -z "$INSTANCE_IDS" ] || [ "$INSTANCE_IDS" = "None" ]; then
-              echo "No SSM Online instances found for ASG $ASG_NAME"
+              echo "No SSM Online instances found for ASG $ASG_NAME after waiting"
               echo "ASG instances: $ASG_INSTANCE_IDS"
               exit 1
             fi
