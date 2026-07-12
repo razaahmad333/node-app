@@ -15,6 +15,6 @@ test('GET / returns the congratulations page', async () => {
   const response = await request(app).get('/');
 
   assert.equal(response.status, 200);
-  assert.match(response.text, /Congratulations, Ahmad Raza Khan\./);
+  assert.match(response.text, /Congratulations, Ahmad Raza\./);
   assert.match(response.text, /Served by instance/);
 });
