@@ -199,39 +199,50 @@ app.get('/', (req, res) => {
           <div class="badge">DevOps Milestone Unlocked</div>
           <h1>Congratulations, Ahmad Raza.</h1>
           <p>
-            You are learning <span class="highlight">Jenkins</span> and
-            <span class="highlight">Terraform</span> and turning that into a real delivery system:
-            infrastructure on AWS, application bootstrapping, and automated multi-node deployment.
+            You are building real delivery skills across <span class="highlight">Node.js</span>,
+            <span class="highlight">Jenkins</span>, and <span class="highlight">Terraform</span>:
+            from application code and tests to AWS infrastructure, image delivery, and health-checked rollout patterns.
           </p>
           <p style="margin-top: 16px;">
-            This stack shows that you are no longer only shipping code. You are provisioning
-            networks, securing traffic paths, wiring a load balancer, and pushing repeatable releases
-            across multiple EC2 instances through Jenkins.
+            This repo and the Terraform repo together now show that you can define infrastructure,
+            bootstrap instances, containerize the app, publish to ECR, reason about ASG behavior,
+            work through SSM-based deployment paths, and verify production traffic through the load balancer.
           </p>
           <div class="stack">
+            <span class="chip">Express App + Tests</span>
             <span class="chip">Jenkins CI/CD Pipelines</span>
             <span class="chip">Terraform IaC on AWS</span>
+            <span class="chip">Docker + Amazon ECR</span>
+            <span class="chip">Launch Template + ASG</span>
+            <span class="chip">SSM Deployment Debugging</span>
             <span class="chip">ALB + Multi-EC2 Delivery</span>
             <span class="chip">Nginx Reverse Proxy</span>
-            <span class="chip">PM2 Process Management</span>
             <span class="chip">Health-Checked Releases</span>
           </div>
           <div class="grid">
             <div class="panel">
+              <strong>Application</strong>
+              <span>You have a working Express service with a real <code>/health</code> endpoint, request handling, environment-variable usage, and automated tests around the app surface.</span>
+            </div>
+            <div class="panel">
               <strong>Terraform</strong>
-              <span>VPC, subnets, route tables, internet gateway, security groups, EC2 instances, target groups, and an application load balancer.</span>
+              <span>You provision AWS foundations with Terraform: VPC, public subnets, route tables, internet gateway, security groups, target groups, listeners, DNS, and load balancing.</span>
+            </div>
+            <div class="panel">
+              <strong>Compute</strong>
+              <span>You moved beyond single EC2 thinking into launch templates, IAM instance profiles, Auto Scaling Groups, rolling instance refresh settings, and multi-instance service design.</span>
             </div>
             <div class="panel">
               <strong>Bootstrap</strong>
-              <span>Automated server setup with user data: Node.js, npm, PM2, Nginx, deploy user, SSH key installation, and first release provisioning.</span>
+              <span>You automated instance setup with user data for Docker, Nginx, AWS CLI, SSM agent startup, ECR login, and first-container boot on fresh machines.</span>
             </div>
             <div class="panel">
               <strong>Delivery</strong>
-              <span>Jenkins packages the app, ships one artifact to both EC2 nodes over SSH, switches the live symlink, and restarts the process cleanly.</span>
+              <span>Your Jenkins pipeline now builds the image, tags it, pushes both build and <code>latest</code> tags to ECR, and coordinates deployment logic instead of relying on manual server changes.</span>
             </div>
             <div class="panel">
               <strong>Operations</strong>
-              <span>ALB health checks route traffic only to healthy targets, while your pipeline verifies the public <code>/health</code> endpoint after deployment.</span>
+              <span>You are working with production-grade concerns: ALB health checks, instance readiness, SSM targeting, IAM permissions, rollout debugging, and validating live traffic through the public health URL.</span>
             </div>
           </div>
           <div class="secret">
