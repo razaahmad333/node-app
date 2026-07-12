@@ -21,8 +21,14 @@ pipeline {
 
   environment {
     DEPLOY_USER = "deploy"
-    DEPLOY_HOSTS = "43.205.217.168 15.207.98.122"
+    DEPLOY_HOSTS = "13.233.244.113 13.203.221.63"
     ALB_DNS_NAME = "terraform-node-nginx-alb-1026713903.ap-south-1.elb.amazonaws.com"
+
+    AWS_REGION = "ap-south-1"
+    ECR_REPO_URL = "148768123658.dkr.ecr.ap-south-1.amazonaws.com/terraform-node-nginx-repo"
+    APP_PORT = "3000"
+    DOCKER_PLATFORM = "linux/amd64"
+
   }
 
   stages {
@@ -38,7 +44,7 @@ pipeline {
           def packageJson = readJSON file: 'package.json'
           env.APP_NAME = packageJson.name
           env.DEPLOY_PATH = "/var/www/${env.APP_NAME}"
-          env.HEALTH_URL = "http://${env.ALB_DNS_NAME}/health"
+          env.HEALTH_URL = "https://test.hikmahone.com/health"
         }
       }
     }
@@ -102,165 +108,88 @@ pipeline {
       }
     }
 
-    stage('Package') {
+    stage('Login to ECR') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+          string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+        ]) {
+          sh '''
+            aws ecr get-login-password --region ${AWS_REGION} \
+              | docker login --username AWS --password-stdin ${ECR_REPO_URL}
+          '''
+        }
+      }
+    }
+
+    stage('Docker Build And Push') {
       steps {
         sh '''
-          rm -rf artifact
-          mkdir artifact
+          docker build \
+            --platform ${DOCKER_PLATFORM} \
+            -t ${APP_NAME}:${BUILD_NUMBER} .
 
-          cp package.json artifact/
-          cp package-lock.json artifact/
-          cp ecosystem.config.js artifact/
+          docker tag ${APP_NAME}:${BUILD_NUMBER} ${ECR_REPO_URL}:${BUILD_NUMBER}
+          docker tag ${APP_NAME}:${BUILD_NUMBER} ${ECR_REPO_URL}:latest
 
-          if [ -f app.js ]; then cp app.js artifact/; fi
-          if [ -f index.js ]; then cp index.js artifact/; fi
-          if [ -d dist ]; then cp -r dist artifact/; fi
-          if [ -d src ]; then cp -r src artifact/; fi
-          if [ -d public ]; then cp -r public artifact/; fi
-
-          tar -czf ${APP_NAME}-${BUILD_NUMBER}.tar.gz -C artifact .
+          docker push ${ECR_REPO_URL}:${BUILD_NUMBER}
+          docker push ${ECR_REPO_URL}:latest
         '''
       }
     }
 
-    stage('Deploy') {
+    stage('Deploy on EC2s') {
       steps {
-        withCredentials([string(credentialsId: 'sample-secret', variable: 'SAMPLE_SECRET')]) {
-          sshagent(credentials: ['ec2-deploy-ssh-key']) {
-            sh '''
-              RELEASE_DIR="${DEPLOY_PATH}/releases/${BUILD_NUMBER}"
+        sshagent(credentials: ['ec2-deploy-ssh-key']) {
+          sh '''
+            for DEPLOY_HOST in $DEPLOY_HOSTS; do
+              echo "Deploying Docker image to $DEPLOY_HOST"
 
-              for DEPLOY_HOST in ${DEPLOY_HOSTS}; do
-                ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "mkdir -p ${DEPLOY_PATH}/releases ${DEPLOY_PATH}/shared"
+              ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
+                set -e
 
-                scp ${APP_NAME}-${BUILD_NUMBER}.tar.gz ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/releases/
+                aws ecr get-login-password --region ${AWS_REGION} \
+                  | docker login --username AWS --password-stdin ${ECR_REPO_URL}
 
-                ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                  set -e
+                docker pull ${ECR_REPO_URL}:${BUILD_NUMBER}
 
-                  PREVIOUS_RELEASE=''
-                  if [ -L '${DEPLOY_PATH}/current' ]; then
-                    PREVIOUS_RELEASE=\$(readlink -f '${DEPLOY_PATH}/current')
-                    printf '%s\n' \"\$PREVIOUS_RELEASE\" > '${DEPLOY_PATH}/shared/previous_release'
-                  fi
+                docker rm -f ${APP_NAME} || true
+                pm2 delete ${APP_NAME} || true
 
-                  rollback() {
-                    if [ -n \"\$PREVIOUS_RELEASE\" ] && [ -d \"\$PREVIOUS_RELEASE\" ]; then
-                      ln -sfn \"\$PREVIOUS_RELEASE\" '${DEPLOY_PATH}/current'
-                      cd '${DEPLOY_PATH}/current'
-                      set -a
-                      . '${DEPLOY_PATH}/shared/.env.production'
-                      set +a
-                      pm2 reload ecosystem.config.js --env production --update-env || \
-                        pm2 start ecosystem.config.js --env production
-                      pm2 save
-                    fi
-                  }
+                docker run -d \
+                  --name ${APP_NAME} \
+                  --restart unless-stopped \
+                  -p 127.0.0.1:${APP_PORT}:${APP_PORT} \
+                  -e NODE_ENV=production \
+                  -e PORT=${APP_PORT} \
+                  ${ECR_REPO_URL}:${BUILD_NUMBER}
 
-                  mkdir -p '${RELEASE_DIR}'
-                  tar -xzf '${DEPLOY_PATH}/releases/${APP_NAME}-${BUILD_NUMBER}.tar.gz' -C '${RELEASE_DIR}'
-
-                  cd '${RELEASE_DIR}'
-                  npm ci --omit=dev
-
-                  cat > '${DEPLOY_PATH}/shared/.env.production' <<EOF
-SAMPLE_SECRET=${SAMPLE_SECRET}
-PORT=3000
-EOF
-                  chmod 600 '${DEPLOY_PATH}/shared/.env.production'
-
-                  ln -sfn '${RELEASE_DIR}' '${DEPLOY_PATH}/current'
-
-                  cd '${DEPLOY_PATH}/current'
-                  set -a
-                  . '${DEPLOY_PATH}/shared/.env.production'
-                  set +a
-                  pm2 delete '${APP_NAME}' || true
-                  pm2 start ecosystem.config.js --env production
-                  pm2 save
-
-                  if [ "${ROLLBACK_TEST_MODE}" = "local" ]; then
-                    echo 'Forcing local rollback test on this host'
-                    pm2 stop '${APP_NAME}'
-                  fi
-
-                  sleep 5
-                  if ! curl -fsS http://127.0.0.1:3000/health >/dev/null; then
-                    echo 'New release failed local health check, rolling back'
-                    rollback
-                    exit 1
-                  fi
-                "
-              done
-            '''
-          }
+                docker image prune -f
+              "
+            done
+          '''
         }
       }
     }
 
-    stage('Health Check') {
+    stage('Health Check Through ALB') {
       steps {
-            script {
-          def healthCheckStatus = sh(
-            script: '''
-              if [ "${ROLLBACK_TEST_MODE}" = "global" ]; then
-                echo "Forcing global rollback test before ALB health check"
-                exit 1
-              fi
+        sh '''
+          echo "Checking health through ALB..."
 
-              sleep 5
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS ${HEALTH_URL}; then
+              echo "Health check passed"
+              exit 0
+            fi
 
-              for i in 1 2 3 4 5; do
-                if curl -fsS ${HEALTH_URL}; then
-                  echo "Health check passed"
-                  exit 0
-                fi
+            echo "Health check failed, retrying..."
+            sleep 10
+          done
 
-                echo "Health check failed, retrying..."
-                sleep 5
-              done
-
-              echo "Health check failed"
-              exit 1
-            ''',
-            returnStatus: true
-          )
-
-          if (healthCheckStatus != 0) {
-            withCredentials([string(credentialsId: 'sample-secret', variable: 'SAMPLE_SECRET')]) {
-              sshagent(credentials: ['ec2-deploy-ssh-key']) {
-                sh '''
-                  for DEPLOY_HOST in ${DEPLOY_HOSTS}; do
-                    ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                      set -e
-
-                      PREVIOUS_RELEASE=''
-                      if [ -f '${DEPLOY_PATH}/shared/previous_release' ]; then
-                        PREVIOUS_RELEASE=\$(cat '${DEPLOY_PATH}/shared/previous_release')
-                      fi
-
-                      if [ -n \"\$PREVIOUS_RELEASE\" ] && [ -d \"\$PREVIOUS_RELEASE\" ]; then
-                        ln -sfn \"\$PREVIOUS_RELEASE\" '${DEPLOY_PATH}/current'
-                        cd '${DEPLOY_PATH}/current'
-                        set -a
-                        . '${DEPLOY_PATH}/shared/.env.production'
-                        set +a
-                        pm2 reload ecosystem.config.js --env production --update-env || \
-                          pm2 start ecosystem.config.js --env production
-                        pm2 save
-                      else
-                        echo 'No previous release available for rollback'
-                        exit 1
-                      fi
-                    "
-                  done
-                '''
-              }
-            }
-
-            error('ALB health check failed; rolled back all hosts')
-          }
-        }
+          echo "Health check failed"
+          exit 1
+        '''
       }
     }
   }
