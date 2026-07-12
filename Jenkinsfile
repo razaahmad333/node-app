@@ -20,12 +20,11 @@ pipeline {
   }
 
   environment {
-    DEPLOY_USER = "deploy"
-    DEPLOY_HOSTS = "13.233.244.113 13.203.221.63"
     ALB_DNS_NAME = "terraform-node-nginx-alb-1026713903.ap-south-1.elb.amazonaws.com"
 
     AWS_REGION = "ap-south-1"
     ECR_REPO_URL = "148768123658.dkr.ecr.ap-south-1.amazonaws.com/terraform-node-nginx-repo"
+    ASG_NAME = "terraform-node-nginx-asg"
     APP_PORT = "3000"
     DOCKER_PLATFORM = "linux/amd64"
 
@@ -138,34 +137,41 @@ pipeline {
       }
     }
 
-    stage('Deploy on EC2s') {
+    stage('Refresh Auto Scaling Group') {
       steps {
-        sshagent(credentials: ['ec2-deploy-ssh-key']) {
+        withCredentials([
+          string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+          string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
+        ]) {
           sh '''
-            for DEPLOY_HOST in $DEPLOY_HOSTS; do
-              echo "Deploying Docker image to $DEPLOY_HOST"
+            REFRESH_ID=$(aws autoscaling start-instance-refresh \
+              --auto-scaling-group-name ${ASG_NAME} \
+              --preferences MinHealthyPercentage=50,InstanceWarmup=180 \
+              --query 'InstanceRefreshId' \
+              --output text)
 
-              ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-                set -e
+            echo "Started instance refresh: $REFRESH_ID"
 
-                aws ecr get-login-password --region ${AWS_REGION} \
-                  | docker login --username AWS --password-stdin ${ECR_REPO_URL}
+            while true; do
+              STATUS=$(aws autoscaling describe-instance-refreshes \
+                --auto-scaling-group-name ${ASG_NAME} \
+                --instance-refresh-ids $REFRESH_ID \
+                --query 'InstanceRefreshes[0].Status' \
+                --output text)
 
-                docker pull ${ECR_REPO_URL}:${BUILD_NUMBER}
+              echo "Instance refresh status: $STATUS"
 
-                docker rm -f ${APP_NAME} || true
-                pm2 delete ${APP_NAME} || true
+              if [ "$STATUS" = "Successful" ]; then
+                echo "Instance refresh successful"
+                exit 0
+              fi
 
-                docker run -d \
-                  --name ${APP_NAME} \
-                  --restart unless-stopped \
-                  -p 127.0.0.1:${APP_PORT}:${APP_PORT} \
-                  -e NODE_ENV=production \
-                  -e PORT=${APP_PORT} \
-                  ${ECR_REPO_URL}:${BUILD_NUMBER}
+              if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+                echo "Instance refresh failed"
+                exit 1
+              fi
 
-                docker image prune -f
-              "
+              sleep 30
             done
           '''
         }
@@ -175,8 +181,6 @@ pipeline {
     stage('Health Check Through ALB') {
       steps {
         sh '''
-          echo "Checking health through ALB..."
-
           for i in 1 2 3 4 5 6; do
             if curl -fsS ${HEALTH_URL}; then
               echo "Health check passed"
@@ -187,7 +191,6 @@ pipeline {
             sleep 10
           done
 
-          echo "Health check failed"
           exit 1
         '''
       }
