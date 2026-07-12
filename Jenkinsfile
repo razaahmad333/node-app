@@ -137,42 +137,46 @@ pipeline {
       }
     }
 
-    stage('Refresh Auto Scaling Group') {
+    stage('Deploy Image on Existing ASG Instances') {
       steps {
         withCredentials([
           string(credentialsId: 'aws-access-key-id', variable: 'AWS_ACCESS_KEY_ID'),
           string(credentialsId: 'aws-secret-access-key', variable: 'AWS_SECRET_ACCESS_KEY')
         ]) {
           sh '''
-            REFRESH_ID=$(aws autoscaling start-instance-refresh \
-              --auto-scaling-group-name ${ASG_NAME} \
-              --preferences MinHealthyPercentage=50,InstanceWarmup=180 \
-              --query 'InstanceRefreshId' \
+            set -e
+
+            INSTANCE_IDS=$(aws autoscaling describe-auto-scaling-groups \
+              --auto-scaling-group-names "$ASG_NAME" \
+              --region "$AWS_REGION" \
+              --query "AutoScalingGroups[0].Instances[?LifecycleState=='InService'].InstanceId" \
               --output text)
 
-            echo "Started instance refresh: $REFRESH_ID"
+            echo "Deploying to instances: $INSTANCE_IDS"
 
-            while true; do
-              STATUS=$(aws autoscaling describe-instance-refreshes \
-                --auto-scaling-group-name ${ASG_NAME} \
-                --instance-refresh-ids $REFRESH_ID \
-                --query 'InstanceRefreshes[0].Status' \
-                --output text)
+            COMMAND_ID=$(aws ssm send-command \
+              --region "$AWS_REGION" \
+              --instance-ids $INSTANCE_IDS \
+              --document-name "AWS-RunShellScript" \
+              --comment "Deploy ${APP_NAME}:${BUILD_NUMBER}" \
+              --parameters commands="[
+                \\"set -e\\",
+                \\"aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REPO_URL}\\",
+                \\"docker pull ${ECR_REPO_URL}:${BUILD_NUMBER}\\",
+                \\"docker stop ${APP_NAME} || true\\",
+                \\"docker rm ${APP_NAME} || true\\",
+                \\"docker run -d --name ${APP_NAME} --restart unless-stopped -p 127.0.0.1:${APP_PORT}:${APP_PORT} -e NODE_ENV=production -e PORT=${APP_PORT} ${ECR_REPO_URL}:${BUILD_NUMBER}\\",
+                \\"docker image prune -f\\"
+              ]" \
+              --query "Command.CommandId" \
+              --output text)
 
-              echo "Instance refresh status: $STATUS"
+            echo "SSM command id: $COMMAND_ID"
 
-              if [ "$STATUS" = "Successful" ]; then
-                echo "Instance refresh successful"
-                exit 0
-              fi
-
-              if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
-                echo "Instance refresh failed"
-                exit 1
-              fi
-
-              sleep 30
-            done
+            aws ssm wait command-executed \
+              --region "$AWS_REGION" \
+              --command-id "$COMMAND_ID" \
+              --instance-id $(echo $INSTANCE_IDS | awk '{print $1}')
           '''
         }
       }
@@ -181,7 +185,7 @@ pipeline {
     stage('Health Check Through ALB') {
       steps {
         sh '''
-          for i in 1 2 3 4 5 6; do
+          for i in 1 2 3 4 5 6 7 8 9 10; do
             if curl -fsS ${HEALTH_URL}; then
               echo "Health check passed"
               exit 0
