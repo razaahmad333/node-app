@@ -157,9 +157,11 @@ pipeline {
               exit 1
             fi
 
+            SSM_FILTER_INSTANCE_IDS=$(echo "$ASG_INSTANCE_IDS" | tr '\t ' ',' | sed 's/,,*/,/g')
+
             INSTANCE_IDS=$(aws ssm describe-instance-information \
               --region "$AWS_REGION" \
-              --filters Key=InstanceIds,Values=$ASG_INSTANCE_IDS \
+              --filters "Key=InstanceIds,Values=$SSM_FILTER_INSTANCE_IDS" \
               --query "InstanceInformationList[?PingStatus=='Online'].InstanceId" \
               --output text)
 
